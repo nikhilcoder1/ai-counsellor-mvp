@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
 import AuthPage from './pages/AuthPage';
+import DashboardPage from './pages/DashboardPage';
 import LandingPage from './pages/LandingPage';
 import AssessmentFormPage from './pages/AssessmentFormPage';
 import LoadingPage from './pages/LoadingPage';
@@ -9,52 +11,111 @@ import { callClaudeAPI } from './services/analysisService';
 import { generateMockResults } from './services/mockService';
 
 function App() {
-    // Auth state
+    /* ================= AUTH STATE ================= */
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
-    
-    // App state (same as before)
+
+    /* ================= APP STATE ================= */
     const [currentScreen, setCurrentScreen] = useState('landing');
     const [profileData, setProfileData] = useState({});
     const [aiResults, setAiResults] = useState(null);
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [loadingMessage, setLoadingMessage] = useState('');
+    const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
-    // Check authentication on mount
+    /* ============== UNIVERSITY LOCKING ============== */
+    const [lockedUniversities, setLockedUniversities] = useState([]);
+
+    /* ============== INITIAL LOAD =================== */
     useEffect(() => {
         const authStatus = localStorage.getItem('isAuthenticated');
         const userData = localStorage.getItem('user');
-        
+        const storedProfileData = localStorage.getItem('profileData');
+        const storedAiResults = localStorage.getItem('aiResults');
+        const storedLockedUniversities = localStorage.getItem('lockedUniversities');
+
         if (authStatus === 'true' && userData) {
             setIsAuthenticated(true);
             setCurrentUser(JSON.parse(userData));
+
+            if (storedProfileData) {
+                setProfileData(JSON.parse(storedProfileData));
+                setHasCompletedOnboarding(true);
+                setCurrentScreen('dashboard');
+            }
+
+            if (storedAiResults) {
+                setAiResults(JSON.parse(storedAiResults));
+            }
+
+            if (storedLockedUniversities) {
+                setLockedUniversities(JSON.parse(storedLockedUniversities));
+            }
         }
     }, []);
 
-    // Auth handlers
+    /* ============== PERSIST LOCKED UNIVERSITIES ============== */
+    useEffect(() => {
+        if (lockedUniversities.length > 0) {
+            localStorage.setItem('lockedUniversities', JSON.stringify(lockedUniversities));
+        } else {
+            localStorage.removeItem('lockedUniversities');
+        }
+    }, [lockedUniversities]);
+
+    /* ================= AUTH HANDLERS ================= */
     const handleAuthSuccess = (userData) => {
         setIsAuthenticated(true);
         setCurrentUser(userData);
-        setCurrentScreen('landing'); // Go to onboarding after auth
+
+        const storedProfileData = localStorage.getItem('profileData');
+        if (storedProfileData) {
+            setProfileData(JSON.parse(storedProfileData));
+            setHasCompletedOnboarding(true);
+            setCurrentScreen('dashboard');
+        } else {
+            setCurrentScreen('form');
+        }
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('isAuthenticated');
-        localStorage.removeItem('user');
+        localStorage.clear();
         setIsAuthenticated(false);
         setCurrentUser(null);
+        setProfileData({});
+        setAiResults(null);
+        setLockedUniversities([]);
+        setHasCompletedOnboarding(false);
         setCurrentScreen('landing');
     };
 
-    // Existing handlers (unchanged)
-    const startAssessment = () => {
+    /* ================= UNIVERSITY LOCKING ================= */
+    const handleLockUniversity = (university) => {
+        if (!lockedUniversities.some(u => u.name === university.name)) {
+            setLockedUniversities(prev => [...prev, university]);
+        }
+    };
+
+    const handleUnlockUniversity = (university) => {
+        setLockedUniversities(prev =>
+            prev.filter(u => u.name !== university.name)
+        );
+    };
+
+    /* ================= FLOW HANDLERS ================= */
+    const startCounsellor = () => {
         setCurrentScreen('form');
+    };
+
+    const startAuth = () => {
+        setCurrentScreen('auth');
     };
 
     const submitProfile = async (data) => {
         setProfileData(data);
+        localStorage.setItem('profileData', JSON.stringify(data));
+        setHasCompletedOnboarding(true);
         setCurrentScreen('loading');
-        
         await analyzeProfile(data);
     };
 
@@ -71,74 +132,70 @@ function App() {
         for (const step of loadingSteps) {
             setLoadingMessage(step.message);
             setLoadingProgress(step.progress);
-            await new Promise(resolve => setTimeout(resolve, step.delay));
+            await new Promise(res => setTimeout(res, step.delay));
         }
 
         try {
             const results = await callClaudeAPI(data);
             setAiResults(results);
+            localStorage.setItem('aiResults', JSON.stringify(results));
             setCurrentScreen('results');
         } catch (error) {
-            console.error('API Error:', error);
-            setAiResults(generateMockResults(data));
+            const mockResults = generateMockResults(data);
+            setAiResults(mockResults);
+            localStorage.setItem('aiResults', JSON.stringify(mockResults));
             setCurrentScreen('results');
         }
     };
 
     const exportToPDF = () => {
-        const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        
         doc.setFontSize(20);
         doc.text('Study Abroad Recommendations', 20, 20);
-        
-        doc.setFontSize(12);
-        let yPos = 40;
-        
-        doc.text('Profile Summary', 20, yPos);
-        yPos += 10;
-        
-        aiResults.profileSummary.strengths.forEach(strength => {
-            doc.text(`• ${strength}`, 25, yPos);
-            yPos += 7;
-        });
-        
-        yPos += 10;
-        doc.text('Top Country Recommendations', 20, yPos);
-        yPos += 10;
-        
-        aiResults.countryRecommendations.slice(0, 3).forEach(country => {
-            doc.text(`${country.flag} ${country.country} - Score: ${country.score}`, 25, yPos);
-            yPos += 7;
-            doc.text(`Cost: ${country.annualCost}`, 30, yPos);
-            yPos += 10;
-        });
-        
         doc.save('study-abroad-recommendations.pdf');
     };
 
-    // If not authenticated, show auth page
-    if (!isAuthenticated) {
-        return <AuthPage onAuthSuccess={handleAuthSuccess} />;
-    }
+    const goToDashboard = () => setCurrentScreen('dashboard');
 
-    // After authentication, show normal app flow
+    const showHeaderActions = ['dashboard', 'results', 'actionPlan'].includes(currentScreen);
+
     return (
         <>
-            {/* Optional: Add logout button to header */}
-            {currentScreen === 'landing' && (
-                <div className="absolute top-4 right-4 z-10">
-                    <button
-                        onClick={handleLogout}
-                        className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-medium hover:bg-white/30 transition"
-                    >
+            {/* ===== HEADER ACTIONS ===== */}
+            {isAuthenticated && showHeaderActions && (
+                <div className="absolute top-4 right-4 z-10 flex gap-2">
+                    {hasCompletedOnboarding && currentScreen !== 'dashboard' && (
+                        <button onClick={goToDashboard}>
+                            🏠 Dashboard
+                        </button>
+                    )}
+                    <button onClick={handleLogout}>
                         Logout ({currentUser?.fullName})
                     </button>
                 </div>
             )}
 
+            {/* ===== SCREENS ===== */}
             {currentScreen === 'landing' && (
-                <LandingPage onStartAssessment={startAssessment} />
+                <LandingPage
+                    onGetStarted={startAuth}
+                    onLogin={startAuth}
+                />
+            )}
+
+            {currentScreen === 'auth' && (
+                <AuthPage onAuthSuccess={handleAuthSuccess} />
+            )}
+
+            {currentScreen === 'dashboard' && (
+                <DashboardPage
+                    profileData={profileData}
+                    aiResults={aiResults}
+                    lockedUniversities={lockedUniversities}
+                    onStartCounsellor={startCounsellor}
+                    onViewResults={() => setCurrentScreen('results')}
+                    onViewActionPlan={() => setCurrentScreen('actionPlan')}
+                />
             )}
 
             {currentScreen === 'form' && (
@@ -149,17 +206,20 @@ function App() {
                 <LoadingPage progress={loadingProgress} message={loadingMessage} />
             )}
 
-            {currentScreen === 'results' && (
-                <ResultsPage 
+            {currentScreen === 'results' && aiResults && (
+                <ResultsPage
                     aiResults={aiResults}
                     profileData={profileData}
+                    lockedUniversities={lockedUniversities}
+                    onLockUniversity={handleLockUniversity}
+                    onUnlockUniversity={handleUnlockUniversity}
                     onViewActionPlan={() => setCurrentScreen('actionPlan')}
                     onExport={exportToPDF}
                 />
             )}
 
-            {currentScreen === 'actionPlan' && (
-                <ActionPlanPage 
+            {currentScreen === 'actionPlan' && aiResults && (
+                <ActionPlanPage
                     actionPlan={aiResults.actionPlan}
                     budgetAnalysis={aiResults.budgetAnalysis}
                     onBack={() => setCurrentScreen('results')}

@@ -1,7 +1,33 @@
 import { useState } from 'react';
 
-export default function ActionPlanPage({ actionPlan, budgetAnalysis, onBack }) {
+export default function ActionPlanPage({ actionPlan, budgetAnalysis, onBack, lockedUniversities = [] }) 
+{
     const [viewMode, setViewMode] = useState('timeline');
+
+    /* ================= LOCK GUARD (FIX) ================= */
+    if (!lockedUniversities || lockedUniversities.length === 0) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center animate-slide-up">
+                    <div className="text-5xl mb-4">🔒</div>
+                    <h2 className="text-2xl font-bold mb-3">
+                        Action Plan Locked
+                    </h2>
+                    <p className="text-gray-600 mb-6">
+                        Please lock at least one university to unlock
+                        your personalized application plan.
+                    </p>
+                    <button
+                        onClick={onBack}
+                        className="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition"
+                    >
+                        ← Back to Results
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    /* ==================================================== */
 
     const groupByTimeline = () => {
         const groups = {
@@ -22,7 +48,9 @@ export default function ActionPlanPage({ actionPlan, budgetAnalysis, onBack }) {
     return (
         <div className="min-h-screen bg-gray-50 py-8">
             <div className="container mx-auto px-4 max-w-4xl">
-                <button onClick={onBack} className="mb-4 text-purple-600 font-semibold hover:text-purple-700">
+                <button 
+                onClick={onBack} 
+                className="mb-4 text-purple-600 font-semibold hover:text-purple-700">
                     ← Back to Results
                 </button>
 

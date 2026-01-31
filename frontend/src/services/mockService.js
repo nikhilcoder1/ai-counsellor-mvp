@@ -1,4 +1,9 @@
 // Generate mock results based on profile data
+
+const confidenceLevels = ['high', 'medium', 'low'];
+const randomConfidence = confidenceLevels[Math.floor(Math.random() * confidenceLevels.length)];
+
+
 export const generateMockResults = (data) => {
     return {
         profileSummary: {
@@ -12,7 +17,7 @@ export const generateMockResults = (data) => {
                 "Need to strengthen test scores for top universities"
             ],
             competitiveness: "strong",
-            confidence: "high"
+            confidence: randomConfidence
         },
         countryRecommendations: [
             {

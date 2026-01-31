@@ -1,5 +1,53 @@
-export default function ResultsPage({ aiResults, profileData, onViewActionPlan, onExport }) {
+import { useState } from 'react';
+import LockedUniversitiesSection from '../components/LockedUniversitiesSection';
+
+const handleViewActionPlan = () => {
+    if (!lockedUniversities || lockedUniversities.length === 0) {
+        alert("🔒 Please lock at least one university to unlock your action plan.");
+        return;
+    }
+    handleViewActionPlan();
+};
+
+
+export default function ResultsPage({ 
+    aiResults, 
+    profileData, 
+    onViewActionPlan, 
+    onExport,
+    lockedUniversities,
+    onLockUniversity,
+    onUnlockUniversity
+}) {
     const { profileSummary, countryRecommendations, universityRecommendations, comparisonTable, keyInsights } = aiResults;
+    const [showUnlockWarning, setShowUnlockWarning] = useState(false);
+    const [universityToUnlock, setUniversityToUnlock] = useState(null);
+
+    const isUniversityLocked = (university) => {
+        return lockedUniversities.some(locked => locked.name === university.name);
+    };
+
+    const handleLockClick = (university) => {
+        onLockUniversity(university);
+    };
+
+    const handleUnlockClick = (university) => {
+        setUniversityToUnlock(university);
+        setShowUnlockWarning(true);
+    };
+
+    const confirmUnlock = () => {
+        if (universityToUnlock) {
+            onUnlockUniversity(universityToUnlock);
+            setShowUnlockWarning(false);
+            setUniversityToUnlock(null);
+        }
+    };
+
+    const cancelUnlock = () => {
+        setShowUnlockWarning(false);
+        setUniversityToUnlock(null);
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 py-8">
@@ -13,6 +61,43 @@ export default function ResultsPage({ aiResults, profileData, onViewActionPlan, 
                         📄 Export to PDF
                     </button>
                 </div>
+
+                {/* Locked Universities Section */}
+                <LockedUniversitiesSection 
+                    lockedUniversities={lockedUniversities}
+                    onUnlock={handleUnlockClick}
+                />
+
+                {/* Unlock Warning Modal */}
+                {showUnlockWarning && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl p-6 max-w-md w-full animate-slide-up">
+                            <div className="text-center mb-4">
+                                <div className="text-5xl mb-3">⚠️</div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                                    Unlock University?
+                                </h3>
+                                <p className="text-gray-600">
+                                    Unlocking <strong>{universityToUnlock?.name}</strong> will reset your application strategy for this university.
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={cancelUnlock}
+                                    className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmUnlock}
+                                    className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition"
+                                >
+                                    Yes, Unlock
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Profile Summary */}
                 <div className="bg-white rounded-xl shadow-lg p-6 mb-6 animate-slide-up">
@@ -132,65 +217,93 @@ export default function ResultsPage({ aiResults, profileData, onViewActionPlan, 
                     </h2>
                     
                     <div className="grid md:grid-cols-2 gap-4">
-                        {universityRecommendations.map((uni, idx) => (
-                            <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                                <div className="flex items-start justify-between mb-2">
-                                    <div>
-                                        <h3 className="font-bold text-lg">{uni.name}</h3>
-                                        <p className="text-sm text-gray-600">{uni.country} {uni.flag}</p>
+                        {universityRecommendations.map((uni, idx) => {
+                            const isLocked = isUniversityLocked(uni);
+                            
+                            return (
+                                <div key={idx} className={`border rounded-lg p-4 hover:shadow-md transition ${
+                                    isLocked ? 'border-green-400 bg-green-50' : 'border-gray-200'
+                                }`}>
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-lg">{uni.name}</h3>
+                                            <p className="text-sm text-gray-600">{uni.country} {uni.flag}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-xl font-bold text-purple-600">{uni.matchScore}</div>
+                                            <div className="text-xs text-gray-500">Match</div>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-xl font-bold text-purple-600">{uni.matchScore}</div>
-                                        <div className="text-xs text-gray-500">Match</div>
-                                    </div>
-                                </div>
 
-                                <div className="mb-3">
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{uni.ranking}</span>
-                                    <span className={`text-xs ml-2 px-2 py-1 rounded ${
-                                        uni.admissionChance === 'Good' ? 'bg-green-100 text-green-800' :
-                                        uni.admissionChance === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-red-100 text-red-800'
-                                    }`}>
-                                        {uni.admissionChance} chance
-                                    </span>
-                                </div>
+                                    <div className="mb-3">
+                                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{uni.ranking}</span>
+                                        <span className={`text-xs ml-2 px-2 py-1 rounded ${
+                                            uni.admissionChance === 'Good' ? 'bg-green-100 text-green-800' :
+                                            uni.admissionChance === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-red-100 text-red-800'
+                                        }`}>
+                                            {uni.admissionChance} chance
+                                        </span>
+                                        {isLocked && (
+                                            <span className="text-xs ml-2 px-2 py-1 rounded bg-green-600 text-white font-semibold">
+                                                🔒 LOCKED
+                                            </span>
+                                        )}
+                                    </div>
 
-                                <div className="space-y-2 text-sm">
-                                    <div>
-                                        <span className="font-semibold">Programs:</span>
-                                        <p className="text-gray-700">{uni.programs.join(', ')}</p>
+                                    <div className="space-y-2 text-sm mb-4">
+                                        <div>
+                                            <span className="font-semibold">Programs:</span>
+                                            <p className="text-gray-700">{uni.programs.join(', ')}</p>
+                                        </div>
+                                        <div>
+                                            <span className="font-semibold">Tuition:</span>
+                                            <p className="text-gray-700">{uni.tuitionRange}</p>
+                                        </div>
+                                        <div>
+                                            <span className="font-semibold">Scholarships:</span>
+                                            <p className="text-gray-700">{uni.scholarships}</p>
+                                        </div>
+                                        <div>
+                                            <span className="font-semibold">Highlights:</span>
+                                            <ul className="mt-1 space-y-1">
+                                                {uni.highlights.map((highlight, i) => (
+                                                    <li key={i} className="flex gap-2">
+                                                        <span className="text-purple-500">•</span>
+                                                        <span className="text-gray-700">{highlight}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                        <div className="pt-2 border-t">
+                                            <span className="font-semibold">Requirements:</span>
+                                            <p className="text-gray-700">{uni.requirements}</p>
+                                        </div>
+                                        <div>
+                                            <span className="font-semibold">Deadline:</span>
+                                            <p className="text-red-600 font-semibold">{uni.applicationDeadline}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span className="font-semibold">Tuition:</span>
-                                        <p className="text-gray-700">{uni.tuitionRange}</p>
-                                    </div>
-                                    <div>
-                                        <span className="font-semibold">Scholarships:</span>
-                                        <p className="text-gray-700">{uni.scholarships}</p>
-                                    </div>
-                                    <div>
-                                        <span className="font-semibold">Highlights:</span>
-                                        <ul className="mt-1 space-y-1">
-                                            {uni.highlights.map((highlight, i) => (
-                                                <li key={i} className="flex gap-2">
-                                                    <span className="text-purple-500">•</span>
-                                                    <span className="text-gray-700">{highlight}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                    <div className="pt-2 border-t">
-                                        <span className="font-semibold">Requirements:</span>
-                                        <p className="text-gray-700">{uni.requirements}</p>
-                                    </div>
-                                    <div>
-                                        <span className="font-semibold">Deadline:</span>
-                                        <p className="text-red-600 font-semibold">{uni.applicationDeadline}</p>
-                                    </div>
+
+                                    {/* Lock/Unlock Button */}
+                                    {!isLocked ? (
+                                        <button
+                                            onClick={() => handleLockClick(uni)}
+                                            className="w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition"
+                                        >
+                                            🔒 Lock University
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleUnlockClick(uni)}
+                                            className="w-full bg-red-100 text-red-700 py-2 rounded-lg font-semibold hover:bg-red-200 transition"
+                                        >
+                                            🔓 Unlock University
+                                        </button>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -246,8 +359,12 @@ export default function ResultsPage({ aiResults, profileData, onViewActionPlan, 
                 {/* Action Button */}
                 <div className="text-center">
                     <button
-                        onClick={onViewActionPlan}
-                        className="bg-purple-600 text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-purple-700 transition"
+                        onClick={handleViewActionPlan}
+                        className={`px-8 py-3 rounded-lg font-semibold text-lg transition ${
+                            lockedUniversities.length === 0
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'bg-purple-600 text-white hover:bg-purple-700'
+                        }`}
                     >
                         View Your Action Plan →
                     </button>
